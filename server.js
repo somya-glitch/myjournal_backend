@@ -181,6 +181,15 @@ cron.schedule('0 16 * * *', () => {
 // --------------------------------
 // START SERVER
 // --------------------------------
+
+
+
+
+
+app.listen(PORT, () => {
+  console.log(`✅ MyLife server running on port ${PORT}`);
+  console.log(`👉 Test it: http://localhost:${PORT}/`);
+});
 app.get('/test-email', async (req, res) => {
   try {
     await transporter.sendMail({
@@ -193,13 +202,5 @@ app.get('/test-email', async (req, res) => {
   } catch (err) {
     res.send('Error: ' + err.message);
   }
-});
-
-
-
-
-app.listen(PORT, () => {
-  console.log(`✅ MyLife server running on port ${PORT}`);
-  console.log(`👉 Test it: http://localhost:${PORT}/`);
 });
  
