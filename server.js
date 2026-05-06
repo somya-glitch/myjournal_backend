@@ -51,16 +51,10 @@ function saveUsers(users) {
 // It uses your Gmail account
 // --------------------------------
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // true for 465, false for other ports
+  service: 'gmail',
   auth: {
     user: process.env.GMAIL_USER,  // your gmail address
     pass: process.env.GMAIL_PASS   // your gmail app password
-  },
-  // Force IPv4 to avoid IPv6 connectivity issues
-  tls: {
-    rejectUnauthorized: false
   }
 });
  
@@ -187,6 +181,23 @@ cron.schedule('0 16 * * *', () => {
 // --------------------------------
 // START SERVER
 // --------------------------------
+app.get('/test-email', async (req, res) => {
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL,
+      to: process.env.EMAIL,
+      subject: 'Test Email',
+      text: 'If you see this, your email config works!',
+    });
+    res.send('Email sent successfully!');
+  } catch (err) {
+    res.send('Error: ' + err.message);
+  }
+});
+
+
+
+
 app.listen(PORT, () => {
   console.log(`✅ MyLife server running on port ${PORT}`);
   console.log(`👉 Test it: http://localhost:${PORT}/`);
