@@ -6,6 +6,13 @@ const path    = require('path');
 const { Resend } = require('resend');
 require('dotenv').config();
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const session = require('express-session');
+const { Pool } = require('pg');
+const mongoose = require('mongoose');
 
 const app    = express();
 const PORT   = process.env.PORT || 3000;
@@ -14,17 +21,80 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 app.use(cors());
 app.use(express.json());
 
-const USERS_FILE = path.join(__dirname, 'users.json');
-if (!fs.existsSync(USERS_FILE)) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify([]));
-}
+// Database connections
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-function getUsers() {
-  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-}
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-}
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+
+// Entry model for MongoDB
+const entrySchema = new mongoose.Schema({
+  userId: String,
+  date: String,
+  mood: String,
+  text: String,
+});
+const Entry = mongoose.model('Entry', entrySchema);
+
+// Passport setup
+app.use(session({ secret: process.env.SESSION_SECRET || 'secret', resave: false, saveUninitialized: false }));
+app.use(passport.initialize());
+app.use(passport.session());
+
+passport.use(new LocalStrategy(
+  async (username, password, done) => {
+    try {
+      const res = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+      if (res.rows.length === 0) return done(null, false, { message: 'User not found' });
+      const user = res.rows[0];
+      const match = await bcrypt.compare(password, user.password_hash);
+      if (!match) return done(null, false, { message: 'Invalid password' });
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }
+));
+
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: '/auth/google/callback'
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
+    let user = await pool.query('SELECT * FROM users WHERE google_id = $1', [profile.id]);
+    if (user.rows.length === 0) {
+      const res = await pool.query('INSERT INTO users (username, email, google_id) VALUES ($1, $2, $3) RETURNING *', [profile.displayName, profile.emails[0].value, profile.id]);
+      user = res;
+    }
+    return done(null, user.rows[0]);
+  } catch (err) {
+    return done(err);
+  }
+}));
+
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const res = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    done(null, res.rows[0]);
+  } catch (err) {
+    done(err);
+  }
+});
+
+// JWT middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
 
 // ROOT
 app.get('/', (req, res) => {
@@ -65,38 +135,67 @@ app.post('/subscribe', async (req, res) => {
   res.status(200).json({ message: 'Subscribed successfully!' });
 });
 
-// AUTH LOGIN
-app.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required' });
-  }
-  const users = getUsers();
-  const user = users.find(u => u.email === email);
-  if (!user) {
-    return res.status(401).json({ error: 'Account not found. Please sign up.' });
-  }
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) {
-    return res.status(401).json({ error: 'Invalid password' });
-  }
-  res.json({ message: 'Login successful' });
-});
-
 // AUTH SIGNUP
 app.post('/auth/signup', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !email.includes('@') || !password || password.length < 6) {
-    return res.status(400).json({ error: 'Invalid email or password (min 6 chars)' });
+  const { username, password } = req.body;
+  if (!username || !password || password.length < 6) {
+    return res.status(400).json({ error: 'Username and password required (min 6 chars)' });
   }
-  let users = getUsers();
-  if (users.find(u => u.email === email)) {
-    return res.status(200).json({ message: 'Account already exists. Please login.' });
+  try {
+    const existing = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', [username, hash]);
+    res.json({ message: 'Account created successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
   }
-  const hash = await bcrypt.hash(password, 10);
-  users.push({ email, password: hash });
-  saveUsers(users);
-  res.json({ message: 'Account created successfully' });
+});
+
+// AUTH LOGIN
+app.post('/auth/login', passport.authenticate('local'), (req, res) => {
+  const token = jwt.sign({ id: req.user.id, username: req.user.username }, process.env.JWT_SECRET);
+  res.json({ token, user: { id: req.user.id, username: req.user.username } });
+});
+
+// GOOGLE AUTH
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get('/auth/google/callback', passport.authenticate('google'), (req, res) => {
+  const token = jwt.sign({ id: req.user.id, username: req.user.username }, process.env.JWT_SECRET);
+  res.json({ token, user: { id: req.user.id, username: req.user.username } });
+});
+
+// ENTRIES ROUTES
+app.get('/entries', authenticateToken, async (req, res) => {
+  try {
+    const entries = await Entry.find({ userId: req.user.id }).sort({ date: -1 });
+    res.json(entries);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/entries', authenticateToken, async (req, res) => {
+  const { date, mood, text } = req.body;
+  try {
+    const entry = new Entry({ userId: req.user.id, date, mood, text });
+    await entry.save();
+    res.json({ message: 'Entry saved' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/entries/:id', authenticateToken, async (req, res) => {
+  try {
+    await Entry.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    res.json({ message: 'Entry deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // UNSUBSCRIBE
