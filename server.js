@@ -5,6 +5,7 @@ const fs      = require('fs');
 const path    = require('path');
 const { Resend } = require('resend');
 require('dotenv').config();
+const bcrypt = require('bcrypt');
 
 const app    = express();
 const PORT   = process.env.PORT || 3000;
@@ -65,29 +66,35 @@ app.post('/subscribe', async (req, res) => {
 });
 
 // AUTH LOGIN
-app.post('/auth/login', (req, res) => {
-  const { email } = req.body;
-  if (!email || !email.includes('@')) {
-    return res.status(400).json({ error: 'Invalid email' });
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
   }
   const users = getUsers();
-  if (!users.includes(email)) {
+  const user = users.find(u => u.email === email);
+  if (!user) {
     return res.status(401).json({ error: 'Account not found. Please sign up.' });
+  }
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) {
+    return res.status(401).json({ error: 'Invalid password' });
   }
   res.json({ message: 'Login successful' });
 });
 
 // AUTH SIGNUP
-app.post('/auth/signup', (req, res) => {
-  const { email } = req.body;
-  if (!email || !email.includes('@')) {
-    return res.status(400).json({ error: 'Invalid email' });
+app.post('/auth/signup', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !email.includes('@') || !password || password.length < 6) {
+    return res.status(400).json({ error: 'Invalid email or password (min 6 chars)' });
   }
-  const users = getUsers();
-  if (users.includes(email)) {
+  let users = getUsers();
+  if (users.find(u => u.email === email)) {
     return res.status(200).json({ message: 'Account already exists. Please login.' });
   }
-  users.push(email);
+  const hash = await bcrypt.hash(password, 10);
+  users.push({ email, password: hash });
   saveUsers(users);
   res.json({ message: 'Account created successfully' });
 });
