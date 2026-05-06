@@ -67,8 +67,29 @@ app.post('/subscribe', async (req, res) => {
 // AUTH LOGIN
 app.post('/auth/login', (req, res) => {
   const { email } = req.body;
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  const users = getUsers();
+  if (!users.includes(email)) {
+    return res.status(401).json({ error: 'Account not found. Please sign up.' });
+  }
   res.json({ message: 'Login successful' });
+});
+
+// AUTH SIGNUP
+app.post('/auth/signup', (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  const users = getUsers();
+  if (users.includes(email)) {
+    return res.status(200).json({ message: 'Account already exists. Please login.' });
+  }
+  users.push(email);
+  saveUsers(users);
+  res.json({ message: 'Account created successfully' });
 });
 
 // UNSUBSCRIBE
