@@ -52,8 +52,8 @@ function saveUsers(users) {
 // --------------------------------
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false,
   family: 4, // <--- This forces the use of IPv4 addresses only
   auth: {
     user: process.env.GMAIL_USER,
