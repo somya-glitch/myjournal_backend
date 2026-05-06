@@ -48,13 +48,18 @@ function saveUsers(users) {
 // --------------------------------
 // EMAIL TRANSPORTER
 // This is what actually sends emails
-// It uses your Gmail account
+// It uses your Gmail account with app password
 // --------------------------------
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.GMAIL_USER,  // your gmail address
     pass: process.env.GMAIL_PASS   // your gmail app password
+  },
+  connectionTimeout: 10000,
+  socketTimeout: 10000,
+  tls: {
+    rejectUnauthorized: false
   }
 });
  
@@ -112,9 +117,13 @@ app.post('/subscribe', (req, res) => {
         <p style="color: #888; font-size: 13px;">If you didn't sign up for this, you can ignore this email.</p>
       </div>
     `
-  }).catch(err => console.log('Welcome email error:', err));
+  }).then(() => {
+    console.log(`Welcome email sent to ${email}`);
+  }).catch(err => {
+    console.error('Welcome email error:', err.message);
+  });
  
-  res.status(200).json({ message: 'Subscribed successfully!' });
+  res.status(200).json({ message: 'Subscribed successfully! Check your email for a welcome message.' });
 });
  
 // UNSUBSCRIBE ROUTE
