@@ -108,7 +108,7 @@ app.post('/subscribe', (req, res) => {
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px;">
         <h2 style="color: #e07b2a;">Welcome to MyLife! 🎉</h2>
         <p>You're now subscribed to daily journal reminders.</p>
-        <p>Every day at <strong>4:00 PM</strong>, you'll get a reminder to write in your journal.</p>
+        <p>Every day at <strong>1:24 PM</strong>, you'll get a reminder to write in your journal.</p>
         <p style="color: #888; font-size: 13px;">If you didn't sign up for this, you can ignore this email.</p>
       </div>
     `
@@ -136,12 +136,12 @@ app.get('/users', (req, res) => {
  
 // --------------------------------
 // DAILY REMINDER SCHEDULER
-// Runs every day at 4:00 PM
+// Runs every day at 1:24 PM
 // Cron format: 'minute hour * * *'
-// '0 16 * * *' = at minute 0, hour 16 (4pm), every day
+// '24 13 * * *' = at minute 24, hour 13 (1:24pm), every day
 // --------------------------------
-cron.schedule('0 16 * * *', () => {
-  console.log('⏰ 4PM — Sending daily reminders...');
+cron.schedule('24 13 * * *', () => {
+  console.log('⏰ 1:24PM — Sending daily reminders...');
  
   const users = getUsers();
  
@@ -158,7 +158,7 @@ cron.schedule('0 16 * * *', () => {
       html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #fdf6ee; border-radius: 12px;">
           <h2 style="color: #e07b2a; margin-bottom: 8px;">Hey! 👋</h2>
-          <p style="font-size: 16px; color: #333;">It's 4PM — time to take 5 minutes for yourself and write in your journal.</p>
+          <p style="font-size: 16px; color: #333;">It's 1:24 PM — time to take 5 minutes for yourself and write in your journal.</p>
           <p style="font-size: 15px; color: #555;">Even just a few sentences can make a big difference. ✨</p>
           <a href="https://somya-glitch.github.io/my_journal"
              style="display: inline-block; margin-top: 20px; background: #e07b2a; color: white;
