@@ -126,7 +126,15 @@ app.post('/unsubscribe', (req, res) => {
   saveUsers(users);
   res.json({ message: 'Unsubscribed successfully' });
 });
- 
+
+app.post('/auth/login', (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  res.json({ message: 'Login successful' });
+});
+
 // SEE ALL SUBSCRIBERS (for testing only)
 // GET http://localhost:3000/users
 app.get('/users', (req, res) => {
