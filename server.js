@@ -10,11 +10,13 @@ const cron     = require('node-cron');
 const cors     = require('cors');
 const fs       = require('fs');
 const path     = require('path');
+const { Resend } = require('resend');
 require('dotenv').config();
  
 const app  = express();
 const PORT = process.env.PORT || 3000;
- 
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 // --------------------------------
 // MIDDLEWARE
 // Allows our website to talk to this server
@@ -50,16 +52,11 @@ function saveUsers(users) {
 // This is what actually sends emails
 // It uses your Gmail account
 // --------------------------------
-const transporter = nodemailer.createTransport({
-  host: '142.250.102.109',
-  port: 587,
-  secure: false,
-  family: 4, // <--- This forces the use of IPv4 addresses only
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASS,
-  },
-  connectionTimeout: 3000, // Give it a bit more time
+await resend.emails.send({
+  from: 'onboarding@resend.dev', // use this until you verify a domain
+  to: email,
+  subject: '🌟 Welcome to MyLife Daily Journal!',
+  html: `your html here`
 });
  
 // --------------------------------
