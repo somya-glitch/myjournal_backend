@@ -160,13 +160,13 @@ cron.schedule('0 16 * * *', () => {
           <h2 style="color: #e07b2a; margin-bottom: 8px;">Hey! 👋</h2>
           <p style="font-size: 16px; color: #333;">It's 4PM — time to take 5 minutes for yourself and write in your journal.</p>
           <p style="font-size: 15px; color: #555;">Even just a few sentences can make a big difference. ✨</p>
-          <a href="YOUR_WEBSITE_URL_HERE"
+          <a href="https://somya-glitch.github.io/my_journal"
              style="display: inline-block; margin-top: 20px; background: #e07b2a; color: white;
                     padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
             Open My Journal →
           </a>
           <p style="margin-top: 24px; font-size: 12px; color: #aaa;">
-            Don't want reminders? <a href="YOUR_WEBSITE_URL_HERE" style="color: #aaa;">Unsubscribe</a>
+            Don't want reminders? <a href="https://somya-glitch.github.io/my_journal" style="color: #aaa;">Unsubscribe</a>
           </p>
         </div>
       `
