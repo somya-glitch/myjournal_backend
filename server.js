@@ -1,11 +1,12 @@
 // ================================
 //  MyLife Backend Server
-//  - Collects user emails
-//  - Sends daily reminder at 1:24pm
+//  - User authentication via email
+//  - Stores user data & journal entries
+//  - Sends daily reminders at 1:24pm
 // ================================
  
 const express  = require('express');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const cron     = require('node-cron');
 const cors     = require('cors');
 const fs       = require('fs');
@@ -15,8 +16,16 @@ require('dotenv').config();
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY);
+// --------------------------------
+// EMAIL TRANSPORTER (Gmail SMTP)
+// --------------------------------
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASS
+  }
+});
  
 // --------------------------------
 // MIDDLEWARE
@@ -27,25 +36,35 @@ app.use(cors());
 app.use(express.json());
  
 // --------------------------------
-// USERS FILE
-// We store emails in a simple users.json file
+// DATABASE FILES
+// Users & their journal data stored locally
 // --------------------------------
 const USERS_FILE = path.join(__dirname, 'users.json');
- 
-// If users.json doesn't exist yet, create it with empty array
+const ENTRIES_FILE = path.join(__dirname, 'entries.json');
+
+// Initialize files if they don't exist
 if (!fs.existsSync(USERS_FILE)) {
   fs.writeFileSync(USERS_FILE, JSON.stringify([]));
 }
- 
-// Helper: read all users from file
-function getUsers() {
-  const data = fs.readFileSync(USERS_FILE, 'utf8');
-  return JSON.parse(data);
+if (!fs.existsSync(ENTRIES_FILE)) {
+  fs.writeFileSync(ENTRIES_FILE, JSON.stringify({}));
 }
- 
-// Helper: save users array back to file
+
+// Helper functions
+function getUsers() {
+  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+}
+
 function saveUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+function getEntries() {
+  return JSON.parse(fs.readFileSync(ENTRIES_FILE, 'utf8'));
+}
+
+function saveEntries(entries) {
+  fs.writeFileSync(ENTRIES_FILE, JSON.stringify(entries, null, 2));
 }
  
 // --------------------------------
@@ -54,105 +73,122 @@ function saveUsers(users) {
 // --------------------------------
  
 // --------------------------------
-// ROUTES (API endpoints)
-// These are the URLs your website will call
+// ROUTES
 // --------------------------------
- 
-// TEST ROUTE — open this in browser to check server is running
-// Visit: http://localhost:3000/
+
+// TEST ROUTE
 app.get('/', (req, res) => {
   res.json({ message: 'MyLife backend is running! 🚀' });
 });
- 
-// SUBSCRIBE ROUTE
-// Website sends email here → we save it
+
+// LOGIN/SIGNUP ROUTE
+// POST http://localhost:3000/auth/login
+// Body: { email }
+app.post('/auth/login', (req, res) => {
+  const { email } = req.body;
+
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Valid email is required' });
+  }
+
+  const users = getUsers();
+  let user = users.find(u => u.email === email);
+
+  // Create user if doesn't exist
+  if (!user) {
+    user = {
+      email,
+      createdAt: new Date().toISOString(),
+      subscribed: false,
+      lastLogin: new Date().toISOString()
+    };
+    users.push(user);
+    saveUsers(users);
+
+    // Send welcome email
+    transporter.sendMail({
+      from: process.env.GMAIL_USER,
+      to: email,
+      subject: '🌟 Welcome to MyLife Journal!',
+      html: `
+        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px;">
+          <h2 style="color: #e07b2a;">Welcome to MyLife! 🎉</h2>
+          <p>Your account has been created. Start writing your journal today.</p>
+          <p><a href="https://somya-glitch.github.io/my_journal" style="color: #e07b2a;">Open My Journal</a></p>
+        </div>
+      `
+    }).catch(err => console.error('Welcome email error:', err.message));
+  } else {
+    user.lastLogin = new Date().toISOString();
+    saveUsers(users);
+  }
+
+  res.json({ 
+    message: 'Login successful',
+    user: { email: user.email, createdAt: user.createdAt }
+  });
+});
+
+// SUBSCRIBE TO REMINDERS
 // POST http://localhost:3000/subscribe
 app.post('/subscribe', (req, res) => {
   const { email } = req.body;
- 
-  // Check email was actually sent
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Valid email is required' });
   }
- 
-  // Check it looks like a real email
-  if (!email.includes('@')) {
-    return res.status(400).json({ error: 'Invalid email address' });
-  }
- 
-  // Load current users
+
   const users = getUsers();
- 
-  // Check if already subscribed
-  if (users.includes(email)) {
-    return res.status(200).json({ message: 'Already subscribed!' });
+  const user = users.find(u => u.email === email);
+
+  if (!user) {
+    return res.status(404).json({ error: 'User not found. Login first.' });
   }
- 
-  // Add new email and save
-  users.push(email);
+
+  if (user.subscribed) {
+    return res.json({ message: 'Already subscribed to reminders' });
+  }
+
+  user.subscribed = true;
   saveUsers(users);
- 
-  console.log(`New subscriber: ${email}`);
- 
-  // Send a welcome email via Resend
-  resend.emails.send({
-    from: 'MyLife Journal <onboarding@resend.dev>',
+
+  // Send confirmation email
+  transporter.sendMail({
+    from: process.env.GMAIL_USER,
     to: email,
-    subject: '🌟 Welcome to MyLife Daily Journal!',
+    subject: '📬 Daily Reminders Enabled!',
     html: `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px;">
-        <h2 style="color: #e07b2a;">Welcome to MyLife! 🎉</h2>
+        <h2 style="color: #e07b2a;">Reminders Enabled ✅</h2>
         <p>You're now subscribed to daily journal reminders.</p>
         <p>Every day at <strong>1:24 PM</strong>, you'll get a reminder to write in your journal.</p>
-        <p style="color: #888; font-size: 13px;">If you didn't sign up for this, you can ignore this email.</p>
       </div>
     `
-  }).then((result) => {
-    console.log(`✅ Welcome email sent to ${email}:`, result);
-  }).catch(err => {
-    console.error(`❌ Welcome email error for ${email}:`, err);
-  });
- 
-  res.status(200).json({ message: 'Subscribed successfully! Check your email for a welcome message.' });
-});
- 
-// UNSUBSCRIBE ROUTE
-// POST http://localhost:3000/unsubscribe
-app.post('/unsubscribe', (req, res) => {
-  const { email } = req.body;
-  let users = getUsers();
-  users = users.filter(u => u !== email);
-  saveUsers(users);
-  res.json({ message: 'Unsubscribed successfully' });
-});
- 
-// SEE ALL SUBSCRIBERS (for testing only)
-// GET http://localhost:3000/users
-app.get('/users', (req, res) => {
-  const users = getUsers();
-  res.json({ count: users.length, users });
+  }).catch(err => console.error('Subscription email error:', err.message));
+
+  res.json({ message: 'Subscribed to reminders successfully!' });
 });
  
 // --------------------------------
 // DAILY REMINDER SCHEDULER
 // Runs every day at 1:24 PM
-// Cron format: 'minute hour * * *'
 // '24 13 * * *' = at minute 24, hour 13 (1:24pm), every day
 // --------------------------------
 cron.schedule('24 13 * * *', () => {
   console.log('⏰ 1:24PM — Sending daily reminders...');
  
   const users = getUsers();
+  const subscribers = users.filter(u => u.subscribed);
  
-  if (users.length === 0) {
+  if (subscribers.length === 0) {
     console.log('No subscribers yet.');
     return;
   }
  
-  users.forEach(email => {
-    resend.emails.send({
-      from: 'MyLife Journal <onboarding@resend.dev>',
-      to: email,
+  subscribers.forEach(user => {
+    transporter.sendMail({
+      from: process.env.GMAIL_USER,
+      to: user.email,
       subject: '📓 Time to Journal Today!',
       html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #fdf6ee; border-radius: 12px;">
@@ -164,15 +200,12 @@ cron.schedule('24 13 * * *', () => {
                     padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
             Open My Journal →
           </a>
-          <p style="margin-top: 24px; font-size: 12px; color: #aaa;">
-            Don't want reminders? <a href="https://somya-glitch.github.io/my_journal" style="color: #aaa;">Unsubscribe</a>
-          </p>
         </div>
       `
-    }).then((result) => {
-      console.log(`✅ Reminder sent to ${email}:`, result);
+    }).then(() => {
+      console.log(`✅ Reminder sent to ${user.email}`);
     }).catch(err => {
-      console.error(`❌ Failed to send to ${email}:`, err);
+      console.error(`❌ Failed to send to ${user.email}:`, err.message);
     });
   });
 });
