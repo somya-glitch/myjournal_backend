@@ -89,13 +89,12 @@ app.post('/subscribe', (req, res) => {
   const users = getUsers();
  
   // Check if already subscribed
-  if (users.includes(email)) {
-    return res.status(200).json({ message: 'Already subscribed!' });
+  if (!users.includes(email)) {
+    users.push(email);
+    saveUsers(users);
   }
  
-  // Add new email and save
-  users.push(email);
-  saveUsers(users);
+
  
   console.log(`New subscriber: ${email}`);
  
