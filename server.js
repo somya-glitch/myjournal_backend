@@ -185,7 +185,7 @@ cron.schedule('0 16 * * *', () => {
 app.get('/test-email', async (req, res) => {
   try {
     await transporter.sendMail({
-      from: process.env.EMAIL,
+      from: process.env.GMAIL_USER,
       to: process.env.EMAIL,
       subject: 'Test Email',
       text: 'If you see this, your email config works!',
