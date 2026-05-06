@@ -51,7 +51,7 @@ function saveUsers(users) {
 // It uses your Gmail account
 // --------------------------------
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
+  host: '142.250.102.109',
   port: 587,
   secure: false,
   family: 4, // <--- This forces the use of IPv4 addresses only
@@ -59,7 +59,7 @@ const transporter = nodemailer.createTransport({
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_PASS,
   },
-  connectionTimeout: 1500, // Give it a bit more time
+  connectionTimeout: 3000, // Give it a bit more time
 });
  
 // --------------------------------
