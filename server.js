@@ -1,11 +1,11 @@
 // ================================
 //  MyLife Backend Server
 //  - Collects user emails
-//  - Sends daily reminder at 4pm
+//  - Sends daily reminder at 1:24pm
 // ================================
  
 const express  = require('express');
-const nodemailer = require('nodemailer');
+const sgMail   = require('@sendgrid/mail');
 const cron     = require('node-cron');
 const cors     = require('cors');
 const fs       = require('fs');
@@ -14,6 +14,9 @@ require('dotenv').config();
  
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
  
 // --------------------------------
 // MIDDLEWARE
@@ -46,22 +49,9 @@ function saveUsers(users) {
 }
  
 // --------------------------------
-// EMAIL TRANSPORTER
-// This is what actually sends emails
-// It uses your Gmail account with app password
+// EMAIL CONFIGURATION
+// Uses SendGrid for reliable cloud email delivery
 // --------------------------------
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,  // your gmail address
-    pass: process.env.GMAIL_PASS   // your gmail app password
-  },
-  connectionTimeout: 10000,
-  socketTimeout: 10000,
-  tls: {
-    rejectUnauthorized: false
-  }
-});
  
 // --------------------------------
 // ROUTES (API endpoints)
@@ -104,10 +94,10 @@ app.post('/subscribe', (req, res) => {
  
   console.log(`New subscriber: ${email}`);
  
-  // Send a welcome email
-  transporter.sendMail({
-    from: process.env.GMAIL_USER,
+  // Send a welcome email via SendGrid
+  const msg = {
     to: email,
+    from: process.env.GMAIL_USER || 'noreply@myjournal.com',
     subject: '🌟 Welcome to MyLife Daily Journal!',
     html: `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px;">
@@ -117,11 +107,11 @@ app.post('/subscribe', (req, res) => {
         <p style="color: #888; font-size: 13px;">If you didn't sign up for this, you can ignore this email.</p>
       </div>
     `
-  }).then(() => {
-    console.log(`Welcome email sent to ${email}`);
-  }).catch(err => {
-    console.error('Welcome email error:', err.message);
-  });
+  };
+
+  sgMail.send(msg)
+    .then(() => console.log(`Welcome email sent to ${email}`))
+    .catch(err => console.error('Welcome email error:', err.message));
  
   res.status(200).json({ message: 'Subscribed successfully! Check your email for a welcome message.' });
 });
@@ -160,9 +150,9 @@ cron.schedule('24 13 * * *', () => {
   }
  
   users.forEach(email => {
-    transporter.sendMail({
-      from: process.env.GMAIL_USER,
+    const msg = {
       to: email,
+      from: process.env.GMAIL_USER || 'noreply@myjournal.com',
       subject: '📓 Time to Journal Today!',
       html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #fdf6ee; border-radius: 12px;">
@@ -179,11 +169,11 @@ cron.schedule('24 13 * * *', () => {
           </p>
         </div>
       `
-    }).then(() => {
-      console.log(`Reminder sent to ${email}`);
-    }).catch(err => {
-      console.log(`Failed to send to ${email}:`, err.message);
-    });
+    };
+
+    sgMail.send(msg)
+      .then(() => console.log(`Reminder sent to ${email}`))
+      .catch(err => console.error(`Failed to send to ${email}:`, err.message));
   });
 });
  
