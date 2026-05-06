@@ -54,13 +54,12 @@ const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
-  dnsLookup: (hostname, options, callback) => {
-    require('dns').lookup(hostname, { family: 4 }, callback);
-  },
+  family: 4, // <--- This forces the use of IPv4 addresses only
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_PASS,
   },
+  connectionTimeout: 1500, // Give it a bit more time
 });
  
 // --------------------------------
