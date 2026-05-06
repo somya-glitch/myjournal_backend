@@ -107,10 +107,10 @@ app.post('/subscribe', (req, res) => {
         <p style="color: #888; font-size: 13px;">If you didn't sign up for this, you can ignore this email.</p>
       </div>
     `
-  }).then(() => {
-    console.log(`Welcome email sent to ${email}`);
+  }).then((result) => {
+    console.log(`✅ Welcome email sent to ${email}:`, result);
   }).catch(err => {
-    console.error('Welcome email error:', err.message);
+    console.error(`❌ Welcome email error for ${email}:`, err);
   });
  
   res.status(200).json({ message: 'Subscribed successfully! Check your email for a welcome message.' });
@@ -169,10 +169,10 @@ cron.schedule('24 13 * * *', () => {
           </p>
         </div>
       `
-    }).then(() => {
-      console.log(`Reminder sent to ${email}`);
+    }).then((result) => {
+      console.log(`✅ Reminder sent to ${email}:`, result);
     }).catch(err => {
-      console.error(`Failed to send to ${email}:`, err.message);
+      console.error(`❌ Failed to send to ${email}:`, err);
     });
   });
 });
