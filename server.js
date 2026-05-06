@@ -51,11 +51,16 @@ function saveUsers(users) {
 // It uses your Gmail account
 // --------------------------------
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  dnsLookup: (hostname, options, callback) => {
+    require('dns').lookup(hostname, { family: 4 }, callback);
+  },
   auth: {
-    user: process.env.GMAIL_USER,  // your gmail address
-    pass: process.env.GMAIL_PASS   // your gmail app password
-  }
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_PASS,
+  },
 });
  
 // --------------------------------
