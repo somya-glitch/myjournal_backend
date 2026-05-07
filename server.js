@@ -1,3 +1,6 @@
+const { webcrypto } = require('crypto');
+globalThis.crypto = webcrypto;
+
 const express = require('express');
 const cron    = require('node-cron');
 const cors    = require('cors');
@@ -26,8 +29,9 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ MongoDB connected!'))
+  .catch(err => console.error('❌ MongoDB error:', err));
 // Entry model for MongoDB
 const entrySchema = new mongoose.Schema({
   userId: String,
