@@ -64,8 +64,8 @@ passport.use(new LocalStrategy(
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: '/auth/google/callback'
-}, async (accessToken, refreshToken, profile, done) => {
+
+callbackURL: 'https://myjournal-backend.onrender.com/auth/google/callback'ss}, async (accessToken, refreshToken, profile, done) => {
   try {
     let user = await pool.query('SELECT * FROM users WHERE google_id = $1', [profile.id]);
     if (user.rows.length === 0) {
