@@ -27,8 +27,8 @@ app.use(express.json());
 // Database connections
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
-
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB connected!'))
   .catch(err => console.error('❌ MongoDB error:', err));
