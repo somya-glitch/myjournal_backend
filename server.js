@@ -168,8 +168,12 @@ app.post('/auth/login', passport.authenticate('local'), (req, res) => {
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/auth/google/callback', passport.authenticate('google'), (req, res) => {
-  const token = jwt.sign({ id: req.user.id, username: req.user.username }, process.env.JWT_SECRET);
-  res.json({ token, user: { id: req.user.id, username: req.user.username } });
+  const token = jwt.sign(
+    { id: req.user.id, username: req.user.username }, 
+    process.env.JWT_SECRET
+  );
+  // Redirect to frontend with token
+  res.redirect(`https://somya-glitch.github.io/my_journal?token=${token}`);
 });
 
 // ENTRIES ROUTES
