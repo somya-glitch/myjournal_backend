@@ -21,7 +21,12 @@ const app    = express();
 const PORT   = process.env.PORT || 3000;
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-app.use(cors());
+app.use(cors({
+  origin: ['https://somya-glitch.github.io', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'DELETE', 'PUT'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Database connections
