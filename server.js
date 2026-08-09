@@ -14,7 +14,6 @@ const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
-const { Pool } = require('pg');
 const mongoose = require('mongoose');
 
 const app    = express();
@@ -29,15 +28,12 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Database connections
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+// Database connection (MongoDB only)
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB connected!'))
   .catch(err => console.error('❌ MongoDB error:', err));
-// Entry model for MongoDB
+
+// Entry model
 const entrySchema = new mongoose.Schema({
   userId: String,
   date: String,
@@ -45,6 +41,15 @@ const entrySchema = new mongoose.Schema({
   text: String,
 });
 const Entry = mongoose.model('Entry', entrySchema);
+
+// User model (replaces the old Postgres "users" table)
+const userSchema = new mongoose.Schema({
+  username: { type: String, unique: true, sparse: true },
+  passwordHash: String,
+  email: String,
+  googleId: { type: String, unique: true, sparse: true },
+});
+const User = mongoose.model('User', userSchema);
 
 // Passport setup
 app.use(session({ secret: process.env.SESSION_SECRET || 'secret', resave: false, saveUninitialized: false }));
@@ -54,10 +59,9 @@ app.use(passport.session());
 passport.use(new LocalStrategy(
   async (username, password, done) => {
     try {
-      const res = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-      if (res.rows.length === 0) return done(null, false, { message: 'User not found' });
-      const user = res.rows[0];
-      const match = await bcrypt.compare(password, user.password_hash);
+      const user = await User.findOne({ username });
+      if (!user) return done(null, false, { message: 'User not found' });
+      const match = await bcrypt.compare(password, user.passwordHash);
       if (!match) return done(null, false, { message: 'Invalid password' });
       return done(null, user);
     } catch (err) {
@@ -69,15 +73,18 @@ passport.use(new LocalStrategy(
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-
-callbackURL: 'https://myjournal-backend.onrender.com/auth/google/callback'}, async (accessToken, refreshToken, profile, done) => {
+  callbackURL: 'https://myjournal-backend.onrender.com/auth/google/callback'
+}, async (accessToken, refreshToken, profile, done) => {
   try {
-    let user = await pool.query('SELECT * FROM users WHERE google_id = $1', [profile.id]);
-    if (user.rows.length === 0) {
-      const res = await pool.query('INSERT INTO users (username, email, google_id) VALUES ($1, $2, $3) RETURNING *', [profile.displayName, profile.emails[0].value, profile.id]);
-      user = res;
+    let user = await User.findOne({ googleId: profile.id });
+    if (!user) {
+      user = await User.create({
+        username: profile.displayName,
+        email: profile.emails[0].value,
+        googleId: profile.id,
+      });
     }
-    return done(null, user.rows[0]);
+    return done(null, user);
   } catch (err) {
     return done(err);
   }
@@ -86,8 +93,8 @@ callbackURL: 'https://myjournal-backend.onrender.com/auth/google/callback'}, asy
 passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
   try {
-    const res = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-    done(null, res.rows[0]);
+    const user = await User.findById(id);
+    done(null, user);
   } catch (err) {
     done(err);
   }
@@ -151,12 +158,12 @@ app.post('/auth/signup', async (req, res) => {
     return res.status(400).json({ error: 'Username and password required (min 6 chars)' });
   }
   try {
-    const existing = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-    if (existing.rows.length > 0) {
+    const existing = await User.findOne({ username });
+    if (existing) {
       return res.status(400).json({ error: 'Username already exists' });
     }
-    const hash = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2)', [username, hash]);
+    const passwordHash = await bcrypt.hash(password, 10);
+    await User.create({ username, passwordHash });
     res.json({ message: 'Account created successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -174,7 +181,7 @@ app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'em
 
 app.get('/auth/google/callback', passport.authenticate('google'), (req, res) => {
   const token = jwt.sign(
-    { id: req.user.id, username: req.user.username }, 
+    { id: req.user.id, username: req.user.username },
     process.env.JWT_SECRET
   );
   // Redirect to frontend with token
@@ -247,7 +254,7 @@ cron.schedule('0 16 * * *', async () => {
   if (users.length === 0) return console.log('No subscribers yet.');
 
   for (const email of users) {
-    try {
+    try {git
       await resend.emails.send({
         from: 'onboarding@resend.dev',
         to: email,
